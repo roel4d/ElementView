@@ -80,16 +80,19 @@ export function App() {
 	);
 }
 
-const XmlViewer = ({ node }: { node: Element }) => {
+const XmlViewer = ({ node, depth = 0 }: { node: Element; depth?: number }) => {
 	const children = Array.from(node.children);
 	const hasChildren = children.length > 0;
 
 	return (
 		<div class="pl-4 font-mono text-sm">
-			{!hasChildren ? <XmlLeaf node={node} /> : <XmlTree node={node} children={children} />}
+			{!hasChildren
+				? <XmlLeaf node={node} />
+				: <XmlTree node={node} children={children} depth={depth} />}
 		</div>
 	);
 };
+
 
 
 function limitContent(content: string) {
@@ -113,8 +116,17 @@ function stripNamespace(tagName: string) {
 	return tagName.includes(":") ? tagName.split(":")[1] : tagName;
 }
 
-const XmlTree = ({ node, children }: { node: Element; children: Element[] }) => {
-	const [collapsed, setCollapsed] = useState(false);
+const XmlTree = ({
+	node,
+	children,
+	depth,
+}: {
+	node: Element;
+	children: Element[];
+	depth: number;
+}) => {
+	const [collapsed, setCollapsed] = useState(depth > 0); // Only level 0 (root) is expanded
+
 	const toggle = () => setCollapsed(prev => !prev);
 
 	return (
@@ -123,7 +135,6 @@ const XmlTree = ({ node, children }: { node: Element; children: Element[] }) => 
 				class="cursor-pointer flex items-center space-x-2"
 				onClick={toggle}
 			>
-
 				<span class="font-medium">{stripNamespace(node.nodeName)}</span>
 				<span
 					class={`transition-transform duration-200 inline-block ${collapsed ? '' : 'rotate-90'}`}
@@ -135,13 +146,14 @@ const XmlTree = ({ node, children }: { node: Element; children: Element[] }) => 
 			{!collapsed && (
 				<div class="ml-4 border-l border-gray-200 pl-4 mt-1 space-y-1">
 					{children.map((child, index) => (
-						<XmlViewer key={index} node={child} />
+						<XmlViewer key={index} node={child} depth={depth + 1} />
 					))}
 				</div>
 			)}
 		</div>
 	);
 };
+
 
 
 render(<App />, document.getElementById('app') as HTMLElement);
