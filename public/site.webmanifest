@@ -1,6 +1,6 @@
 {
-  "name": "ElementView",
-  "short_name": "ElementView",
+  "name": "xmlview",
+  "short_name": "xmlview",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",

@@ -1,6 +1,6 @@
 {
-	"name": "element-view",
-	"description": "ElementView",
+	"name": "xmlview",
+	"description": "xmlview",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
