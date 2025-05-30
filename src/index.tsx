@@ -6,7 +6,7 @@ import './style.css';
 export function App() {
 	const [xmlElement, setXmlElement] = useState<Element | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
-	const [error, setError] = useState(null);
+	const [error, setError] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const handleFile = (file: File) => {
@@ -47,12 +47,11 @@ export function App() {
 	const handleClick = () => fileInputRef.current?.click();
 
 	return (
-		<div class=" mx-auto p-6 space-y-6">
+		<div class="mx-auto p-6 space-y-6">
 			<h1 class="text-3xl font-bold text-center">Upload XML File</h1>
 
 			<div
-				className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors duration-300 ${isDragging ? 'bg-blue-100 border-blue-400' : 'bg-white border-gray-300'
-					}`}
+				className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors duration-300 ${isDragging ? 'bg-blue-100 border-blue-400' : 'bg-white border-gray-300'}`}
 				onClick={handleClick}
 				onDrop={handleDrop}
 				onDragOver={handleDragOver}
@@ -75,59 +74,102 @@ export function App() {
 			/>
 
 			{error && <div class="text-red-600 font-semibold">{error}</div>}
-			{xmlElement && <XmlViewer node={xmlElement} />}
+			{xmlElement && <XmlView xmlElement={xmlElement} />}
 		</div>
 	);
 }
 
-const XmlViewer = ({ node, depth = 0 }: { node: Element; depth?: number }) => {
+const XmlView = ({ xmlElement }: { xmlElement: Element }) => {
+	const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
+
+	const expandAll = () => {
+		const map: Record<string, boolean> = {};
+		const traverse = (el: Element, path: string) => {
+			map[path] = false;
+			Array.from(el.children).forEach((child, i) =>
+				traverse(child, `${path}.${i}`)
+			);
+		};
+		traverse(xmlElement, '0');
+		setCollapsedMap(map);
+	};
+
+	return (
+		<>
+			<button
+				type="button"
+				class="rounded bg-white px-2 py-1 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+				onClick={expandAll}
+			>
+				Expand all
+			</button>
+			<XmlViewer
+				node={xmlElement}
+				path="0"
+				collapsedMap={collapsedMap}
+				setCollapsedMap={setCollapsedMap}
+			/>
+		</>
+	);
+};
+
+const XmlViewer = ({
+	node,
+	depth = 0,
+	path,
+	collapsedMap,
+	setCollapsedMap,
+}: {
+	node: Element;
+	depth?: number;
+	path: string;
+	collapsedMap: Record<string, boolean>;
+	setCollapsedMap: (map: Record<string, boolean>) => void;
+}) => {
 	const children = Array.from(node.children);
 	const hasChildren = children.length > 0;
 
 	return (
 		<div class="pl-4 font-mono text-sm">
-			{!hasChildren
-				? <XmlLeaf node={node} />
-				: <XmlTree node={node} children={children} depth={depth} />}
+			{!hasChildren ? (
+				<XmlLeaf node={node} />
+			) : (
+				<XmlTree
+					node={node}
+					children={children}
+					depth={depth}
+					path={path}
+					collapsedMap={collapsedMap}
+					setCollapsedMap={setCollapsedMap}
+				/>
+			)}
 		</div>
 	);
 };
-
-
-
-function limitContent(content: string) {
-	const max = 80;
-	if (!content) return "";
-	content = content.trim();
-	if (content.length > max) {
-		return content.slice(0, max) + "...";
-	}
-	return content;
-}
-
-const XmlLeaf = ({ node }: { node: Element }) => (
-	<div class="ml-4 text-gray-800">
-		<span class="font-medium ">{stripNamespace(node.nodeName)}:</span>
-		<span class="ml-1 font-semibold">{limitContent(node.textContent)}</span>
-	</div>
-);
-
-function stripNamespace(tagName: string) {
-	return tagName.includes(":") ? tagName.split(":")[1] : tagName;
-}
 
 const XmlTree = ({
 	node,
 	children,
 	depth,
+	path,
+	collapsedMap,
+	setCollapsedMap,
 }: {
 	node: Element;
 	children: Element[];
 	depth: number;
+	path: string;
+	collapsedMap: Record<string, boolean>;
+	setCollapsedMap: (map: Record<string, boolean>) => void;
 }) => {
-	const [collapsed, setCollapsed] = useState(depth > 0); // Only level 0 (root) is expanded
+	const collapsed = collapsedMap[path] ?? (depth > 0);
 
-	const toggle = () => setCollapsed(prev => !prev);
+	const toggle = () => {
+		setCollapsedMap({
+			...collapsedMap,
+			[path]: !collapsed,
+		});
+	};
 
 	return (
 		<div class="ml-4">
@@ -146,7 +188,14 @@ const XmlTree = ({
 			{!collapsed && (
 				<div class="ml-4 border-l border-gray-200 pl-4 mt-1 space-y-1">
 					{children.map((child, index) => (
-						<XmlViewer key={index} node={child} depth={depth + 1} />
+						<XmlViewer
+							key={index}
+							node={child}
+							depth={depth + 1}
+							path={`${path}.${index}`}
+							collapsedMap={collapsedMap}
+							setCollapsedMap={setCollapsedMap}
+						/>
 					))}
 				</div>
 			)}
@@ -154,6 +203,25 @@ const XmlTree = ({
 	);
 };
 
+const XmlLeaf = ({ node }: { node: Element }) => (
+	<div class="ml-4 text-gray-800">
+		<span class="font-medium">{stripNamespace(node.nodeName)}:</span>
+		<span class="ml-1 font-semibold">{limitContent(node.textContent)}</span>
+	</div>
+);
 
+function limitContent(content: string | null) {
+	const max = 80;
+	if (!content) return "";
+	content = content.trim();
+	if (content.length > max) {
+		return content.slice(0, max) + "...";
+	}
+	return content;
+}
+
+function stripNamespace(tagName: string) {
+	return tagName.includes(":") ? tagName.split(":")[1] : tagName;
+}
 
 render(<App />, document.getElementById('app') as HTMLElement);
