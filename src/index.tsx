@@ -7,6 +7,7 @@ export function App() {
 	const [xmlElement, setXmlElement] = useState<Element | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const handleFile = (file: File) => {
@@ -19,14 +20,28 @@ export function App() {
 			const parserError = xmlDoc.getElementsByTagName('parsererror');
 
 			setError(null);
-			setXmlElement(null);
 			if (parserError.length > 0) {
+				setXmlElement(null);
 				setError("Not a valid XML");
 			} else {
-				setXmlElement(xmlDoc.documentElement);
+				const root = xmlDoc.documentElement;
+				setXmlElement(root);
+				setCollapsedMap(generateDefaultCollapsedMap(root));
 			}
 		};
 		reader.readAsText(file);
+	};
+
+	const generateDefaultCollapsedMap = (root: Element) => {
+		const map: Record<string, boolean> = {};
+		const traverse = (el: Element, path: string, depth: number) => {
+			map[path] = depth > 0; // Collapse everything except root
+			Array.from(el.children).forEach((child, i) =>
+				traverse(child, `${path}.${i}`, depth + 1)
+			);
+		};
+		traverse(root, '0', 0);
+		return map;
 	};
 
 	const handleDrop = (e: DragEvent) => {
@@ -74,14 +89,26 @@ export function App() {
 			/>
 
 			{error && <div class="text-red-600 font-semibold">{error}</div>}
-			{xmlElement && <XmlView xmlElement={xmlElement} />}
+			{xmlElement && (
+				<XmlView
+					xmlElement={xmlElement}
+					collapsedMap={collapsedMap}
+					setCollapsedMap={setCollapsedMap}
+				/>
+			)}
 		</div>
 	);
 }
 
-const XmlView = ({ xmlElement }: { xmlElement: Element }) => {
-	const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
-
+const XmlView = ({
+	xmlElement,
+	collapsedMap,
+	setCollapsedMap,
+}: {
+	xmlElement: Element;
+	collapsedMap: Record<string, boolean>;
+	setCollapsedMap: (map: Record<string, boolean>) => void;
+}) => {
 	const expandAll = () => {
 		const map: Record<string, boolean> = {};
 		const traverse = (el: Element, path: string) => {
@@ -94,22 +121,44 @@ const XmlView = ({ xmlElement }: { xmlElement: Element }) => {
 		setCollapsedMap(map);
 	};
 
+	const collapseAll = () => {
+		const map: Record<string, boolean> = {};
+		const traverse = (el: Element, path: string) => {
+			map[path] = true;
+			Array.from(el.children).forEach((child, i) =>
+				traverse(child, `${path}.${i}`)
+			);
+		};
+		traverse(xmlElement, '0');
+		setCollapsedMap(map);
+	};
+
 	return (
-		<>
-			<button
-				type="button"
-				class="rounded bg-white px-2 py-1 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-				onClick={expandAll}
-			>
-				Expand all
-			</button>
+		<div class="space-y-4">
+			<div class="flex gap-2">
+				<button
+					type="button"
+					class="rounded bg-white px-2 py-1 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+					onClick={expandAll}
+				>
+					Expand all
+				</button>
+				<button
+					type="button"
+					class="rounded bg-white px-2 py-1 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+					onClick={collapseAll}
+				>
+					Collapse all
+				</button>
+			</div>
 			<XmlViewer
 				node={xmlElement}
 				path="0"
 				collapsedMap={collapsedMap}
 				setCollapsedMap={setCollapsedMap}
+				depth={0}
 			/>
-		</>
+		</div>
 	);
 };
 
